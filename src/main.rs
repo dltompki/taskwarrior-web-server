@@ -29,12 +29,12 @@ async fn tasks() -> Json<String> {
 #[derive(Debug, Serialize, Deserialize)]
 struct WidgetTask {
     description: String,
-    #[serde(with = "date_format")]
+    #[serde(default, with = "date_format")]
     due: Option<DateTime<Utc>>
 }
 
 mod date_format {
-    use chrono::{DateTime, Utc};
+    use chrono::{DateTime, NaiveDateTime, Utc};
     use serde::{self, Deserialize, Deserializer, Serializer, de};
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DateTime<Utc>>, D::Error>
@@ -43,12 +43,10 @@ mod date_format {
     {
         let date_str: Option<String> = Option::deserialize(deserializer)?;
         match date_str {
-            Some(s) => match DateTime::parse_from_rfc3339(&s) {
-                Ok(dt) => Ok(Some(dt.with_timezone(&Utc))),
+            Some(s) => match NaiveDateTime::parse_from_str(&s, "%Y%m%dT%H%M%SZ") {
+                Ok(dt) => Ok(Some(dt.and_utc())),
                 Err(e) => {
-                    println!("{}", e);
-                    println!("{}", s);
-                    Err(de::Error::invalid_length(s.len(), &"a valid RFC 3339 date"))
+                    Err(de::Error::custom(e))
                 },
             },
             None => Ok(None),
