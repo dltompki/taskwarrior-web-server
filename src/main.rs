@@ -4,7 +4,7 @@ use rocket::serde::json::Json;
 use std::process::Command;
 use std::str;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, to_string};
+use serde_json::{from_str, Value, from_value};
 use chrono::{DateTime, Utc};
 
 #[get("/")]
@@ -12,21 +12,23 @@ fn index() -> &'static str {
     "You have reached the Taskwarrior Web Server!"
 }
 
-async fn export() -> String {
+async fn export() -> Vec<Value> {
     let output = Command::new("task")
         .arg("export")
+        .arg("next")
         .output()
         .expect("failed to execute process");
 
-    str::from_utf8(&output.stdout).unwrap_or("Failed to capture output").to_string()
+    let json_string = str::from_utf8(&output.stdout).unwrap_or("Failed to capture output").to_string();
+    from_str(&json_string).expect("invalid JSON")
 }
 
 #[get("/tasks")]
-async fn tasks() -> Json<String> {
+async fn tasks() -> Json<Vec<Value>> {
     Json(export().await)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct WidgetTask {
     description: String,
     #[serde(default, with = "date_format")]
@@ -65,10 +67,10 @@ mod date_format {
 }
 
 #[get("/widget")]
-async fn widget() -> Json<String> {
-    let tasks: Vec<WidgetTask> = from_str(&export().await).expect("JSON was not well formatted");
+async fn widget() -> Json<Vec<WidgetTask>> {
+    let tasks: Vec<WidgetTask> = from_value(Value::Array(export().await)).expect("Value could not be translated");
 
-    Json(to_string(&tasks).expect("Failed to convert to JSON"))
+    Json(tasks.iter().take(17).cloned().collect::<Vec<WidgetTask>>())
 }
 
 #[launch]
