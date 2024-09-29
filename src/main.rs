@@ -6,6 +6,7 @@ use std::str;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, Value, from_value};
 use chrono::{DateTime, Utc};
+use timeago::Formatter;
 
 #[get("/")]
 fn index() -> &'static str {
@@ -32,7 +33,8 @@ async fn tasks() -> Json<Vec<Value>> {
 struct WidgetTask {
     description: String,
     #[serde(default, with = "date_format")]
-    due: Option<DateTime<Utc>>
+    due: Option<DateTime<Utc>>,
+    project: Option<String>
 }
 
 mod date_format {
@@ -67,10 +69,31 @@ mod date_format {
 }
 
 #[get("/widget")]
-async fn widget() -> Json<Vec<WidgetTask>> {
-    let tasks: Vec<WidgetTask> = from_value(Value::Array(export().await)).expect("Value could not be translated");
+async fn widget() -> Json<Vec<String>> {
+    let lines: Vec<String> = from_value::<Vec<WidgetTask>>(Value::Array(export().await))
+        .expect("Value could not be translated")
+        .into_iter()
+        .take(8)
+        .flat_map(|task| {
+            vec![
+            {
+                let due_date = match task.due {
+                    None => "".to_string(),
+                    Some(s) => {
+                        let formatter = Formatter::new();
+                        formatter.convert_chrono(s, Utc::now())
+                    }
+                };
+                let project = &task.project.unwrap_or("".to_string());
+                let spaces = 45 - due_date.len() - project.len();
+                due_date + &" ".repeat(spaces) + project
+            },
+                task.description
+            ]
+        })
+    .collect();
 
-    Json(tasks.iter().take(17).cloned().collect::<Vec<WidgetTask>>())
+    Json(lines)
 }
 
 #[launch]
