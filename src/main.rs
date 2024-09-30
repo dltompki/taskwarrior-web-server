@@ -6,7 +6,7 @@ use std::str;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, Value, from_value};
 use chrono::{DateTime, Utc};
-use timeago::Formatter;
+use humantime::format_duration;
 
 #[get("/")]
 fn index() -> &'static str {
@@ -80,8 +80,18 @@ async fn widget() -> Json<Vec<String>> {
                 let due_date = match task.due {
                     None => "".to_string(),
                     Some(s) => {
-                        let formatter = Formatter::new();
-                        formatter.convert_chrono(s, Utc::now())
+                        let now = Utc::now();
+                        let duration = s.signed_duration_since(now).to_std();
+                        match duration {
+                            Ok(d) => "in ".to_owned() + &format_duration(d).to_string().split_whitespace().next().unwrap(),
+                            Err(_) => {
+                                let reverse_duration = now.signed_duration_since(s).to_std();
+                                match reverse_duration {
+                                    Ok(d) => format_duration(d).to_string().split_whitespace().next().unwrap().to_owned() + " ago",
+                                    Err(e) => e.to_string()
+                                }
+                            }
+                        }
                     }
                 };
                 let project = &task.project.unwrap_or("".to_string());
