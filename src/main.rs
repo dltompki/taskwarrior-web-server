@@ -14,7 +14,7 @@ fn index() -> &'static str {
 }
 
 async fn export() -> Vec<Value> {
-    let output = Command::new("task")
+    let output = Command::new("/run/current-system/sw/bin/task")
         .arg("export")
         .arg("next")
         .output()
